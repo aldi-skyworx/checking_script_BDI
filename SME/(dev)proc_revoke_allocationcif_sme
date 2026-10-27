@@ -1,0 +1,55 @@
+-- DROP PROCEDURE ruleenginev2.proc_revoke_allocationcif_sme(text);
+
+CREATE OR REPLACE PROCEDURE ruleenginev2.proc_revoke_allocationcif_sme(IN param_financierid text)
+ LANGUAGE plpgsql
+AS $procedure$
+BEGIN
+
+    CREATE TEMP TABLE IF NOT EXISTS tmp_existing_loan_cif
+    (
+        cust_id      TEXT,
+        financier_id TEXT
+    )
+    ON COMMIT DROP;
+
+    TRUNCATE TABLE tmp_existing_loan_cif;
+
+    INSERT INTO tmp_existing_loan_cif
+    (
+        cust_id,
+        financier_id
+    )
+    SELECT
+        a.cust_id,
+        a.financier_id
+    FROM ruleenginev2.allocationdistributionownershipcif a
+    JOIN public.cs_case_info cci
+        ON cci.cust_id = a.cust_id
+       AND cci.financier_id = a.financier_id
+    WHERE a.lob = 'SME'
+      AND a.queuecode = '2MQ-0213'
+    GROUP BY
+        a.cust_id,
+        a.financier_id
+    HAVING COUNT(DISTINCT a.appl_id) >= 1
+       AND COUNT(DISTINCT a.appl_id)
+           =
+           COUNT(
+               DISTINCT CASE
+                   WHEN cci.account_closed_flg= 'C'
+                    AND cci.charge_off_flag = 'N'
+                   THEN a.appl_id
+               END
+           );
+
+
+    DELETE FROM ruleenginev2.allocationdistributionownershipcif a
+    USING tmp_existing_loan_cif t
+    WHERE a.cust_id = t.cust_id
+      AND a.financier_id = t.financier_id
+      AND a.lob = 'SME'
+      AND a.queuecode = '2MQ-0213';
+
+END;
+$procedure$
+;

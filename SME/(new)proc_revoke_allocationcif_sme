@@ -1,0 +1,88 @@
+-- DROP PROCEDURE ruleenginev2.proc_revoke_allocationcif_sme(text);
+
+CREATE OR REPLACE PROCEDURE ruleenginev2.proc_revoke_allocationcif_sme(IN param_financierid text)
+ LANGUAGE plpgsql
+AS $procedure$
+BEGIN
+
+    CREATE TEMP TABLE IF NOT EXISTS tmp_existing_loan_cif
+    (
+        cust_id TEXT,
+        financier_id text
+       
+    )
+    ON COMMIT DROP;
+
+    TRUNCATE TABLE tmp_existing_loan_cif;
+
+    INSERT INTO tmp_existing_loan_cif
+    (
+        cust_id,
+        financier_id
+       
+    )
+      SELECT
+      a.cust_id,
+      a.financier_id
+  FROM ruleenginev2.allocationdistributionownershipcif a
+  JOIN public.cs_case_info cci
+      ON cci.cust_id = a.cust_id
+     AND cci.financier_id = a.financier_id
+     AND cci.appl_id = a.appl_id
+  JOIN ruleenginev2.snapshot_users us
+      ON cci.unit_id = us.usr_id
+     AND us.prd_sgm_id = 4
+  JOIN ruleenginev2.snapshot_usersegmentedrole urs
+      ON us.usr_userid = urs.usr_userid
+     AND urs.role_id IN (102, 108)
+  WHERE a.lob = 'SME'
+    AND a.queuecode = '2MQ-0213'
+    AND a.financier_id = param_financierid
+    AND NOT EXISTS (
+        SELECT 1 FROM public.flag_mpkd mpkd
+        WHERE mpkd.cust_id = a.cust_id
+          AND mpkd.flag_mpkd IS TRUE
+    )
+  GROUP BY
+      a.cust_id,
+      a.financier_id
+  HAVING COUNT(DISTINCT a.appl_id) >= 1
+     AND COUNT(
+         DISTINCT CASE
+             WHEN cci.dpd = 0
+              AND LEFT(COALESCE(cci.user_amount6::TEXT, '1'), 1)::INTEGER <= 2
+             THEN a.appl_id
+         END
+     ) = COUNT(DISTINCT a.appl_id);
+
+    UPDATE public.cs_case_info cci
+    SET
+        queue = NULL,
+        queue_date = NULL,
+        queue_type = NULL,
+        allocation_date = NULL,
+        unit_id = NULL,
+        remarks = 'ON PAID'
+    FROM ruleenginev2.allocationdistributionownershipcif a
+    JOIN tmp_existing_loan_cif t
+        ON t.cust_id = a.cust_id
+       AND t.financier_id = a.financier_id
+    WHERE cci.cust_id = a.cust_id
+      AND cci.financier_id = a.financier_id
+      AND cci.appl_id = a.appl_id
+      AND a.lob = 'SME'
+      AND a.queuecode = '2MQ-0213'
+      AND a.financier_id = param_financierid;
+
+
+    DELETE FROM ruleenginev2.allocationdistributionownershipcif a
+    USING tmp_existing_loan_cif t
+    WHERE a.cust_id = t.cust_id
+      AND a.financier_id = t.financier_id
+      AND a.lob = 'SME'
+      AND a.queuecode = '2MQ-0213'
+      AND a.financier_id = param_financierid;
+
+END;
+$procedure$
+;

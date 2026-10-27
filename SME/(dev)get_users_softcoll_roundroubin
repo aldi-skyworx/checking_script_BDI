@@ -1,0 +1,36 @@
+-- DROP FUNCTION ruleenginev2.get_users_softcoll_roundroubin(text);
+
+CREATE OR REPLACE FUNCTION ruleenginev2.get_users_softcoll_roundroubin(param_branchcode text)
+ RETURNS TABLE(userid text, sndcode text, branchcode text)
+ LANGUAGE plpgsql
+AS $function$
+ BEGIN
+ 
+  return QUERY
+  select
+  u.usr_userid::text ,
+  u.snd_code::text ,
+  mb.brc_code::text
+  from
+  skycore_public.users u
+  left join
+  skycore_public.usersegmentedrole us
+  on
+  u.usr_userid =us.usr_userid
+  left join
+  skycore_param.master_branch mb
+  on
+  mb.brc_snd =ANY(string_to_array(u.snd_code, ','))  
+  where us.is_active is true
+  and us.role_id =102
+  and u.prd_sgm_id =4
+  and u.usr_status is true
+  and mb.brc_code=param_branchcode
+  and u.snd_code is not null
+  
+  ;
+  
+  
+ END;
+$function$
+;

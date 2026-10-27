@@ -1,0 +1,48 @@
+select
+	distinct (cci.cust_id),
+	cci.cs_case_info_id,
+	cci.financier_id,
+	cci.cust_name,
+	cci.cif_number,
+	cci.appl_id,
+	cci.product,
+	cci.dpd,
+	cci.outstanding_amt,
+	cci.interest_outstanding,
+	cci.branch_code ,
+	cci.principle_outstanding,
+	cci.m_billed_outstanding,
+	cci.amount_outstanding,
+	cci.contact_no,
+	cci.currency ,
+	cci.late_fees,
+	cci.watchlist_flag ,
+	cci.current_acc_balance,
+	cci.charge_off_flag ,
+	cci.user_amount6,
+	cci.charge_off_date,
+	cci.account_closed_flg
+from
+	public.CS_CASE_INFO cci
+where
+	(cci.financier_id = 'BDI-LOANS')
+	and cci.loan_type in ('SMEC', 'SEMM')
+	and cci.account_closed_flg not in ('C', 'D', '2', '4', '7')
+	and cci.charge_off_flag = 'N'
+	and cci.charge_off_date is null
+	and ((substring(coalesce(cci.user_amount6, '1')::text, 1, 1) <= '2'
+		and cci.dpd between 1 and 30)
+	or (cci.product_id = 'TRADE_FINANCE'
+		and cci.dpd between 1 and 30))
+	and cci.case_clear_flag = 'N'
+	and cci.purpose in (
+	select
+		purpose
+	from
+		ruleenginev2.mastergroupingpurpose m
+	where
+		(cci.financier_id = 'BDI-LOANS')
+			and m.lob = 'SME')
+	and (substring(cci.scheme, 1, 3) not in ('252', '740')
+		and substring(cci.sub_product_code, 1, 4) not in ('N440', 'N441', 'N442', 'N443', 'R116', 'R123'))
+	and not exists(select 1 from ruleenginev2.allocationdistributionownershipcif ac where (cci.financier_id = 'BDI-LOANS') and ac.lob = 'SME' and cci.appl_id = ac.appl_id and cci.cust_id = ac.cust_id and cci.financier_id = ac.financier_id and ac.queuecode = '2MQ-0214')

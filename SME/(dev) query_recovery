@@ -1,0 +1,49 @@
+SELECT DISTINCT
+    cci.cust_id,
+    cci.cs_case_info_id,
+    cci.financier_id,
+    cci.cust_name,
+    cci.cif_number,
+    cci.appl_id,
+    cci.product,
+    cci.dpd,
+    cci.outstanding_amt,
+    cci.interest_outstanding,
+    cci.branch_code,
+    cci.principle_outstanding,
+    cci.m_billed_outstanding,
+    cci.amount_outstanding,
+    cci.contact_no,
+    cci.currency,
+    cci.late_fees,
+    cci.watchlist_flag,
+    cci.current_acc_balance,
+    cci.charge_off_flag,
+    cci.user_amount6,
+    cci.charge_off_date,
+    cci.account_closed_flg
+FROM 
+    public.CS_CASE_INFO cci
+WHERE 
+    cci.financier_id = 'BDI-LOANS'
+    -- AND cci.loan_type = 'SMEC'
+    AND cci.loan_type IN ('SMEC', 'SEMM')
+    
+    -- Status Charge-Off (Recovery)
+    AND cci.charge_off_flag = 'Y'
+    AND cci.charge_off_date IS NOT NULL
+    
+    -- Filter Minimal Salah Satu Tunggakan > 0
+    AND (
+        cci.amount_outstanding > 0 
+        OR cci.interest_overdue > 0 
+        OR cci.interest_outstanding > 0 
+        OR cci.total_charges_overdue > 0
+    )
+    
+    -- Filter Purpose berdasarkan LOB SME
+    AND cci.purpose IN (
+        SELECT m.purpose 
+        FROM ruleenginev2.mastergroupingpurpose m 
+        WHERE m.lob = 'SME'
+    );

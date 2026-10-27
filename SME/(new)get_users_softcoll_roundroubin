@@ -1,0 +1,25 @@
+CREATE OR REPLACE FUNCTION ruleenginev2.get_users_softcoll_roundroubin(param_branchcode text)
+   RETURNS TABLE(userid text, sndcode text, branchcode text)
+   LANGUAGE plpgsql
+  AS $function$
+  BEGIN
+      RETURN QUERY
+      SELECT
+          u.usr_userid::text,
+          u.snd_code::text,
+          mb.brc_code::text
+      FROM skycore_public.users u
+      LEFT JOIN skycore_public.usersegmentedrole us
+          ON u.usr_userid = us.usr_userid
+      LEFT JOIN skycore_param.master_branch mb
+          ON TRIM(mb.brc_snd) = ANY(
+              SELECT TRIM(s) FROM unnest(string_to_array(u.snd_code, ',')) AS s
+          )
+      WHERE us.is_active IS TRUE
+        AND us.role_id = 102
+        AND u.prd_sgm_id = 4
+        AND u.usr_status IS TRUE
+        AND mb.brc_code = param_branchcode
+        AND u.snd_code IS NOT NULL;
+  END;
+  $function$;
