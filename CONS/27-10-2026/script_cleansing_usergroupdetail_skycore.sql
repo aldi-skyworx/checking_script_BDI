@@ -87,8 +87,6 @@ left join tmp_member_count mc
     on mc.usergroupheader_id = h.usergroupheader_id
 where h.totalmember is distinct from coalesce(mc.actual_total, 0);
 
-create index on tmp_header_update (usergroupheader_id);
-
 update public.usergroupheader h
 set totalmember = t.new_total
 from tmp_header_update t
